@@ -98,7 +98,7 @@ def train(rank, a, h):
     # define training and validation datasets
     # unseen_validation_filelist will contain sample filepaths outside the seen training & validation dataset
     # example: trained on LibriTTS, validate on VCTK
-    training_filelist, validation_filelist, list_unseen_validation_filelist = get_dataset_filelist(a)
+    training_filelist, validation_filelist = get_dataset_filelist(a)
 
     trainset = MelDataset(training_filelist, h, h.segment_size, h.n_fft, h.num_mels,
                           h.hop_size, h.win_size, h.sampling_rate, h.fmin, h.fmax, n_cache_reuse=0,
@@ -124,20 +124,20 @@ def train(rank, a, h):
                                        pin_memory=True,
                                        drop_last=True)
 
-        list_unseen_validset = []
-        list_unseen_validation_loader = []
-        for i in range(len(list_unseen_validation_filelist)):
-            unseen_validset = MelDataset(list_unseen_validation_filelist[i], h, h.segment_size, h.n_fft, h.num_mels,
-                                         h.hop_size, h.win_size, h.sampling_rate, h.fmin, h.fmax, False, False, n_cache_reuse=0,
-                                         fmax_loss=h.fmax_for_loss, device=device, fine_tuning=a.fine_tuning,
-                                         base_mels_path=a.input_mels_dir, is_seen=False)
-            unseen_validation_loader = DataLoader(unseen_validset, num_workers=1, shuffle=False,
-                                                  sampler=None,
-                                                  batch_size=1,
-                                                  pin_memory=True,
-                                                  drop_last=True)
-            list_unseen_validset.append(unseen_validset)
-            list_unseen_validation_loader.append(unseen_validation_loader)
+#        list_unseen_validset = []
+#        list_unseen_validation_loader = []
+#        for i in range(len(list_unseen_validation_filelist)):
+#            unseen_validset = MelDataset(list_unseen_validation_filelist[i], h, h.segment_size, h.n_fft, h.num_mels,
+#                                         h.hop_size, h.win_size, h.sampling_rate, h.fmin, h.fmax, False, False, n_cache_reuse=0,
+#                                         fmax_loss=h.fmax_for_loss, device=device, fine_tuning=a.fine_tuning,
+#                                         base_mels_path=a.input_mels_dir, is_seen=False)
+#            unseen_validation_loader = DataLoader(unseen_validset, num_workers=1, shuffle=False,
+#                                                  sampler=None,
+#                                                  batch_size=1,
+#                                                  pin_memory=True,
+#                                                  drop_last=True)
+#            list_unseen_validset.append(unseen_validset)
+#            list_unseen_validation_loader.append(unseen_validation_loader)
 
         # Tensorboard logger
         sw = SummaryWriter(os.path.join(a.checkpoint_path, 'logs'))
@@ -191,7 +191,8 @@ def train(rank, a, h):
                     val_pesq_tot += pesq(16000, y_int_16k, y_g_hat_int_16k, 'wb')
 
                 # MRSTFT calculation
-                val_mrstft_tot += loss_mrstft(y_g_hat.squeeze(1), y).item()
+                #val_mrstft_tot += loss_mrstft(y_g_hat.squeeze(1), y).item()
+                val_mrstft_tot += loss_mrstft(y_g_hat, y.unsqueeze(1)).item()
 
                 # log audio and figures to Tensorboard
                 if j % a.eval_subsample == 0:  # subsample every nth from validation set
@@ -231,9 +232,9 @@ def train(rank, a, h):
         if not a.skip_seen:
             validate(rank, a, h, validation_loader,
                      mode="seen_{}".format(train_loader.dataset.name))
-        for i in range(len(list_unseen_validation_loader)):
-            validate(rank, a, h, list_unseen_validation_loader[i],
-                     mode="unseen_{}".format(list_unseen_validation_loader[i].dataset.name))
+#        for i in range(len(list_unseen_validation_loader)):
+#            validate(rank, a, h, list_unseen_validation_loader[i],
+#                     mode="unseen_{}".format(list_unseen_validation_loader[i].dataset.name))
     # exit the script if --evaluate is set to True
     if a.evaluate:
         exit()
@@ -364,9 +365,9 @@ def train(rank, a, h):
                     if not a.debug and steps != 0:
                         validate(rank, a, h, validation_loader,
                                  mode="seen_{}".format(train_loader.dataset.name))
-                        for i in range(len(list_unseen_validation_loader)):
-                            validate(rank, a, h, list_unseen_validation_loader[i],
-                                     mode="unseen_{}".format(list_unseen_validation_loader[i].dataset.name))
+#                        for i in range(len(list_unseen_validation_loader)):
+#                            validate(rank, a, h, list_unseen_validation_loader[i],
+#                                     mode="unseen_{}".format(list_unseen_validation_loader[i].dataset.name))
             steps += 1
 
         scheduler_g.step()
@@ -388,17 +389,17 @@ def main():
     parser.add_argument('--input_training_file', default='LibriTTS/train-full.txt')
     parser.add_argument('--input_validation_file', default='LibriTTS/val-full.txt')
 
-    parser.add_argument('--list_input_unseen_wavs_dir', nargs='+', default=['LibriTTS', 'LibriTTS'])
-    parser.add_argument('--list_input_unseen_validation_file', nargs='+', default=['LibriTTS/dev-clean.txt', 'LibriTTS/dev-other.txt'])
+#    parser.add_argument('--list_input_unseen_wavs_dir', nargs='+', default=['LibriTTS', 'LibriTTS'])
+#    parser.add_argument('--list_input_unseen_validation_file', nargs='+', default=['LibriTTS/dev-clean.txt', 'LibriTTS/dev-other.txt'])
 
     parser.add_argument('--checkpoint_path', default='exp/bigvgan')
     parser.add_argument('--config', default='')
 
-    parser.add_argument('--training_epochs', default=100000, type=int)
+    parser.add_argument('--training_epochs', default=100, type=int)
     parser.add_argument('--stdout_interval', default=5, type=int)
-    parser.add_argument('--checkpoint_interval', default=50000, type=int)
+    parser.add_argument('--checkpoint_interval', default=5000, type=int)
     parser.add_argument('--summary_interval', default=100, type=int)
-    parser.add_argument('--validation_interval', default=50000, type=int)
+    parser.add_argument('--validation_interval', default=5000, type=int)
 
     parser.add_argument('--freeze_step', default=0, type=int,
                         help='freeze D for the first specified steps. G only uses regression loss for these steps.')

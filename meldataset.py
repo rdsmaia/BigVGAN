@@ -95,15 +95,15 @@ def get_dataset_filelist(a):
                             for x in fi.read().split('\n') if len(x) > 0]
         print("first validation file: {}".format(validation_files[0]))
 
-    list_unseen_validation_files = []
-    for i in range(len(a.list_input_unseen_validation_file)):
-        with open(a.list_input_unseen_validation_file[i], 'r', encoding='utf-8') as fi:
-            unseen_validation_files = [os.path.join(a.list_input_unseen_wavs_dir[i], x.split('|')[0] + '.wav')
-                                for x in fi.read().split('\n') if len(x) > 0]
-            print("first unseen {}th validation fileset: {}".format(i, unseen_validation_files[0]))
-            list_unseen_validation_files.append(unseen_validation_files)
+#    list_unseen_validation_files = []
+#    for i in range(len(a.list_input_unseen_validation_file)):
+#        with open(a.list_input_unseen_validation_file[i], 'r', encoding='utf-8') as fi:
+#            unseen_validation_files = [os.path.join(a.list_input_unseen_wavs_dir[i], x.split('|')[0] + '.wav')
+#                                for x in fi.read().split('\n') if len(x) > 0]
+#            print("first unseen {}th validation fileset: {}".format(i, unseen_validation_files[0]))
+#            list_unseen_validation_files.append(unseen_validation_files)
 
-    return training_files, validation_files, list_unseen_validation_files
+    return training_files, validation_files #, list_unseen_validation_files
 
 
 class MelDataset(torch.utils.data.Dataset):
@@ -170,14 +170,16 @@ class MelDataset(torch.utils.data.Dataset):
                     audio = audio[:, audio_start:audio_start+self.segment_size]
                 else:
                     audio = torch.nn.functional.pad(audio, (0, self.segment_size - audio.size(1)), 'constant')
-
                 mel = mel_spectrogram(audio, self.n_fft, self.num_mels,
-                                      self.sampling_rate, self.hop_size, self.win_size, self.fmin, self.fmax,
-                                      center=False)
+                                  self.sampling_rate, self.hop_size, self.win_size, self.fmin, self.fmax,
+                                  center=False)
             else: # validation step
                 # match audio length to self.hop_size * n for evaluation
+                nmax_frames = 300
                 if (audio.size(1) % self.hop_size) != 0:
                     audio = audio[:, :-(audio.size(1) % self.hop_size)]
+                if audio.size(1) > nmax_frames * self.hop_size:
+                    audio = audio[:, :nmax_frames * self.hop_size]
                 mel = mel_spectrogram(audio, self.n_fft, self.num_mels,
                                       self.sampling_rate, self.hop_size, self.win_size, self.fmin, self.fmax,
                                       center=False)
